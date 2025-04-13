@@ -1,490 +1,239 @@
 ArduinoJson: change log
 =======================
 
-v5.13.5
--------
+v7.3.1 (2025-02-27)
+------
 
-* Fixed warning "unused variable" with GCC 4.4 (issue #912)
-* Fixed warning "maybe uninitialized" (issue #909)
-* Added an clear message for `StaticJsonDocument`, `DynamicJsonDocument`...
+* Fix conversion from static string to number
+* Slightly reduce code size
 
-v5.13.4
--------
+v7.3.0 (2024-12-29)
+------
 
-* Removed spurious files in the Particle library
+* Fix support for NUL characters in `deserializeJson()`
+* Make `ElementProxy` and `MemberProxy` non-copyable
+* Change string copy policy: only string literal are stored by pointer
+* `JsonString` is now stored by copy, unless specified otherwise
+* Replace undocumented `JsonString::Ownership` with `bool`
+* Rename undocumented `JsonString::isLinked()` to `isStatic()`
+* Move public facing SFINAEs to template declarations
 
-v5.13.3
--------
-
-* Improved float serialization when `-fsingle-precision-constant` is used
-* Fixed `JsonVariant::is<int>()` that returned true for empty strings
-* Fixed `JsonVariant::is<String>()` (closes #763)
-
-v5.13.2
--------
-
-* Fixed `JsonBuffer::parse()` not respecting nesting limit correctly (issue #693)
-* Fixed inconsistencies in nesting level counting (PR #695 from Zhenyu Wu)
-* Fixed null values that could be pass to `strcmp()` (PR #745 from Mike Karlesky)
-* Added macros `ARDUINOJSON_VERSION`, `ARDUINOJSON_VERSION_MAJOR`...
-
-v5.13.1
--------
-
-* Fixed `JsonVariant::operator|(int)` that returned the default value if the variant contained a double (issue #675)
-* Allowed non-quoted key to contain underscores (issue #665)
-
-v5.13.0
--------
-
-* Changed the rules of string duplication (issue #658)
-* `RawJson()` accepts any kind of string and obeys to the same rules for duplication
-* Changed the return type of `strdup()` to `const char*` to prevent double duplication
-* Marked `strdup()` as deprecated
-
-> ### New rules for string duplication
+> ### BREAKING CHANGES
 >
-> | type                       | duplication |
-> |:---------------------------|:------------|
-> | const char*                | no          |
-> | char*                      | ~~no~~ yes  |
-> | String                     | yes         |
-> | std::string                | yes         |
-> | const __FlashStringHelper* | yes         |
+> In previous versions, `MemberProxy` (the class returned by `operator[]`) could lead to dangling pointers when used with a temporary string.
+> To prevent this issue, `MemberProxy` and `ElementProxy` are now non-copyable.
 >
-> These new rules make `JsonBuffer::strdup()` useless.
-
-v5.12.0
--------
-
-* Added `JsonVariant::operator|` to return a default value (see below)
-* Added a clear error message when compiled as C instead of C++ (issue #629)
-* Added detection of MPLAB XC compiler (issue #629)
-* Added detection of Keil ARM Compiler (issue #629)
-* Added an example that shows how to save and load a configuration file
-* Reworked all other examples
-
-> ### How to use the new feature?
+> Your code is likely to be affected if you use `auto` to store the result of `operator[]`. For example, the following line won't compile anymore:
 >
-> If you have a block like this:
->
-> ```c++
-> const char* ssid = root["ssid"];
-> if (!ssid)
->   ssid = "default ssid";
+> ```cpp
+> auto value = doc["key"];
 > ```
 >
-> You can simplify like that:
+> To fix the issue, you must append either `.as<T>()` or `.to<T>()`, depending on the situation.
 >
-> ```c++
-> const char* ssid = root["ssid"] | "default ssid";
-> ```
-
-v5.11.2
--------
-
-* Fixed `DynamicJsonBuffer::clear()` not resetting allocation size (issue #561)
-* Fixed incorrect rounding for float values (issue #588)
-
-v5.11.1
--------
-
-* Removed dependency on `PGM_P` as Particle 0.6.2 doesn't define it (issue #546)
-* Fixed warning "dereferencing type-punned pointer will break strict-aliasing rules [-Wstrict-aliasing]"
-* Fixed warning "floating constant exceeds range of 'float' [-Woverflow]" (issue #544)
-* Fixed warning "this statement may fall through" [-Wimplicit-fallthrough=] (issue #539)
-* Removed `ARDUINOJSON_DOUBLE_IS_64BITS` as it became useless.
-* Fixed too many decimals places in float serialization (issue #543)
-
-v5.11.0
--------
-
-* Made `JsonBuffer` non-copyable (PR #524 by @luisrayas3)
-* Added `StaticJsonBuffer::clear()`
-* Added `DynamicJsonBuffer::clear()`
-
-v5.10.1
--------
-
-* Fixed IntelliSense errors in Visual Micro (issue #483)
-* Fixed compilation in IAR Embedded Workbench (issue #515)
-* Fixed reading "true" as a float (issue #516)
-* Added `ARDUINOJSON_DOUBLE_IS_64BITS`
-* Added `ARDUINOJSON_EMBEDDED_MODE`
-
-v5.10.0
--------
-
-* Removed configurable number of decimal places (issues #288, #427 and #506)
-* Changed exponentiation thresholds to `1e7` and `1e-5` (issues #288, #427 and #506)
-* `JsonVariant::is<double>()` now returns `true` for integers
-* Fixed error `IsBaseOf is not a member of ArduinoJson::TypeTraits` (issue #495)
-* Fixed error `forming reference to reference` (issue #495)
-
-> ### BREAKING CHANGES :warning:
+> For example, if you are extracting values from a JSON document, you should update like this:
 >
-> | Old syntax                      | New syntax          |
-> |:--------------------------------|:--------------------|
-> | `double_with_n_digits(3.14, 2)` | `3.14`              |
-> | `float_with_n_digits(3.14, 2)`  | `3.14f`             |
-> | `obj.set("key", 3.14, 2)`       | `obj["key"] = 3.14` |
-> | `arr.add(3.14, 2)`              | `arr.add(3.14)`     |
->
-> | Input     | Old output | New output |
-> |:----------|:-----------|:-----------|
-> | `3.14159` | `3.14`     | `3.14159`  |
-> | `42.0`    | `42.00`    | `42`       |
-> | `0.0`     | `0.00`     | `0`        |
->
-> | Expression                     | Old result | New result |
-> |:-------------------------------|:-----------|:-----------|
-> | `JsonVariant(42).is<int>()`    | `true`     | `true`     |
-> | `JsonVariant(42).is<float>()`  | `false`    | `true`     |
-> | `JsonVariant(42).is<double>()` | `false`    | `true`     |
-
-v5.9.0
-------
-
-* Added `JsonArray::remove(iterator)` (issue #479)
-* Added `JsonObject::remove(iterator)`
-* Renamed `JsonArray::removeAt(size_t)` into `remove(size_t)`
-* Renamed folder `include/` to `src/`
-* Fixed warnings `floating constant exceeds range of float`and `floating constant truncated to zero` (issue #483)
-* Removed `Print` class and converted `printTo()` to a template method (issue #276)
-* Removed example `IndentedPrintExample.ino`
-* Now compatible with Particle 0.6.1, thanks to Jacob Nite (issue #294 and PR #461 by @foodbag)
-
-v5.8.4
-------
-
-* Added custom implementation of `strtod()` (issue #453)
-* Added custom implementation of `strtol()` (issue #465)
-* `char` is now treated as an integral type (issue #337, #370)
-
-v5.8.3
-------
-
-* Fixed an access violation in `DynamicJsonBuffer` when memory allocation fails (issue #433)
-* Added operators `==` and `!=` for two `JsonVariant`s (issue #436)
-* Fixed `JsonVariant::operator[const FlashStringHelper*]` (issue #441)
-
-v5.8.2
-------
-
-* Fixed parsing of comments (issue #421)
-* Fixed ignored `Stream` timeout (issue #422)
-* Made sure we don't read more that necessary (issue #422)
-* Fixed error when the key of a `JsonObject` is a `char[]` (issue #423)
-* Reduced code size when using `const` references
-* Fixed error with string of type `unsigned char*` (issue #428)
-* Added `deprecated` attribute on `asArray()`, `asObject()` and `asString()` (issue #420)
-
-v5.8.1
-------
-
-* Fixed error when assigning a `volatile int` to a `JsonVariant` (issue #415)
-* Fixed errors with Variable Length Arrays (issue #416)
-* Fixed error when both `ARDUINOJSON_ENABLE_STD_STREAM` and `ARDUINOJSON_ENABLE_ARDUINO_STREAM` are set to `1`
-* Fixed error "Stream does not name a type" (issue #412)
-
-v5.8.0
-------
-
-* Added operator `==` to compare `JsonVariant` and strings (issue #402)
-* Added support for `Stream` (issue #300)
-* Reduced memory consumption by not duplicating spaces and comments
-
-> ### BREAKING CHANGES :warning:
->
-> `JsonBuffer::parseObject()` and  `JsonBuffer::parseArray()` have been pulled down to the derived classes `DynamicJsonBuffer` and `StaticJsonBufferBase`.
->
-> This means that if you have code like:
->
-> ```c++
-> void myFunction(JsonBuffer& jsonBuffer);
+> ```diff
+> - auto config = doc["config"];
+> + auto config = doc["config"].as<JsonObject>();
+> const char* name = config["name"];
 > ```
 >
-> you need to replace it with one of the following:
+> However, if you are building a JSON document, you should update like this:
 >
-> ```c++
-> void myFunction(DynamicJsonBuffer& jsonBuffer);
-> void myFunction(StaticJsonBufferBase& jsonBuffer);
-> template<typename TJsonBuffer> void myFunction(TJsonBuffer& jsonBuffer);
+> ```diff
+> - auto config = doc["config"];
+> + auto config = doc["config"].to<JsonObject>();
+> config["name"] = "ArduinoJson";
 > ```
 
-v5.7.3
+v7.2.1 (2024-11-15)
 ------
 
-* Added an `printTo(char[N])` and `prettyPrintTo(char[N])` (issue #292)
-* Added ability to set a nested value like this: `root["A"]["B"] = "C"` (issue #352)
-* Renamed `*.ipp` to `*Impl.hpp` because they were ignored by Arduino IDE (issue #396)
+* Forbid `deserializeJson(JsonArray|JsonObject, ...)` (issue #2135)
+* Fix VLA support in `JsonDocument::set()`
+* Fix `operator[](variant)` ignoring NUL characters
 
-v5.7.2
+v7.2.0 (2024-09-18)
 ------
 
-* Made PROGMEM available on more platforms (issue #381)
-* Fixed PROGMEM causing an exception on ESP8266 (issue #383)
+* Store object members with two slots: one for the key and one for the value
+* Store 64-bit numbers (`double` and `long long`) in an additional slot
+* Reduce the slot size (see table below)
+* Improve message when user forgets third arg of `serializeJson()` et al.
+* Set `ARDUINOJSON_USE_DOUBLE` to `0` by default on 8-bit architectures
+* Deprecate `containsKey()` in favor of `doc["key"].is<T>()`
+* Add support for escape sequence `\'` (issue #2124)
 
-v5.7.1
-------
+| Architecture | before   | after    |
+|--------------|----------|----------|
+| 8-bit        | 8 bytes  | 6 bytes  |
+| 32-bit       | 16 bytes | 8 bytes  |
+| 64-bit       | 24 bytes | 16 bytes |
 
-* Added support for PROGMEM (issue #76)
-* Fixed compilation error when index is not an `int` (issue #381)
-
-v5.7.0
-------
-
-* Templatized all functions using `String` or `std::string`
-* Removed `ArduinoJson::String`
-* Removed `JsonVariant::defaultValue<T>()`
-* Removed non-template `JsonObject::get()` and `JsonArray.get()`
-* Fixed support for `StringSumHelper` (issue #184)
-* Replaced `ARDUINOJSON_USE_ARDUINO_STRING` by `ARDUINOJSON_ENABLE_STD_STRING` and `ARDUINOJSON_ENABLE_ARDUINO_STRING` (issue #378)
-* Added example `StringExample.ino` to show where `String` can be used
-* Increased default nesting limit to 50 when compiled for a computer (issue #349)
-
-> ### BREAKING CHANGES :warning:
+> ### BREAKING CHANGES
 >
-> The non-template functions `JsonObject::get()` and `JsonArray.get()` have been removed. This means that you need to explicitely tell the type you expect in return.
+> After being on the death row for years, the `containsKey()` method has finally been deprecated.
+> You should replace `doc.containsKey("key")` with `doc["key"].is<T>()`, which not only checks that the key exists but also that the value is of the expected type.
 >
-> Old code:
+> ```cpp
+> // Before
+> if (doc.containsKey("value")) {
+>   int value = doc["value"];
+>   // ...
+> }
 >
-> ```c++
-> #define ARDUINOJSON_USE_ARDUINO_STRING 0
-> JsonVariant value1 = myObject.get("myKey");
-> JsonVariant value2 = myArray.get(0);
-> ```
->
-> New code:
->
-> ```c++
-> #define ARDUINOJSON_ENABLE_ARDUINO_STRING 0
-> #define ARDUINOJSON_ENABLE_STD_STRING 1
-> JsonVariant value1 = myObject.get<JsonVariant>("myKey");
-> JsonVariant value2 = myArray.get<JsonVariant>(0);
+> // After
+> if (doc["value"].is<int>()) {
+>   int value = doc["value"];
+>   // ...
+> }
 > ```
 
-v5.6.7
+v7.1.0 (2024-06-27)
 ------
 
-* Fixed `array[idx].as<JsonVariant>()` and `object[key].as<JsonVariant>()`
-* Fixed return value of `JsonObject::set()` (issue #350)
-* Fixed undefined behavior in `Prettyfier` and `Print` (issue #354)
-* Fixed parser that incorrectly rejected floats containing a `+` (issue #349)
+* Add `ARDUINOJSON_STRING_LENGTH_SIZE` to the namespace name
+* Add support for MsgPack binary (PR #2078 by @Sanae6)
+* Add support for MsgPack extension
+* Make string support even more generic (PR #2084 by @d-a-v)
+* Optimize `deserializeMsgPack()`
+* Allow using a `JsonVariant` as a key or index (issue #2080)
+  Note: works only for reading, not for writing
+* Support `ElementProxy` and `MemberProxy` in `JsonDocument`'s constructor
+* Don't add partial objects when allocation fails (issue #2081)
+* Read MsgPack's 64-bit integers even if `ARDUINOJSON_USE_LONG_LONG` is `0`
+  (they are set to `null` if they don't fit in a `long`)
 
-v5.6.6
+v7.0.4 (2024-03-12)
 ------
 
-* Fixed `-Wparentheses` warning introduced in v5.6.5 (PR #335 by @nuket)
-* Added `.mbedignore` for ARM mbdeb (PR #334 by @nuket)
-* Fixed  `JsonVariant::success()` which didn't propagate `JsonArray::success()` nor `JsonObject::success()` (issue #342).
+* Make `JSON_STRING_SIZE(N)` return `N+1` to fix third-party code (issue #2054)
 
-v5.6.5
+v7.0.3 (2024-02-05)
 ------
 
-* `as<char*>()` now returns `true` when input is `null` (issue #330)
+* Improve error messages when using `char` or `char*` (issue #2043)
+* Reduce stack consumption (issue #2046)
+* Fix compatibility with GCC 4.8 (issue #2045)
 
-v5.6.4
+v7.0.2 (2024-01-19)
 ------
 
-* Fixed error in float serialization (issue #324)
+* Fix assertion `poolIndex < count_` after `JsonDocument::clear()` (issue #2034)
 
-v5.6.3
+v7.0.1 (2024-01-10)
 ------
 
-* Improved speed of float serialization (about twice faster)
-* Added `as<JsonArray>()` as a synonym for `as<JsonArray&>()`... (issue #291)
-* Fixed `call of overloaded isinf(double&) is ambiguous` (issue #284)
+* Fix "no matching function" with `JsonObjectConst::operator[]` (issue #2019)
+* Remove unused files in the PlatformIO package
+* Fix `volatile bool` serialized as `1` or `0` instead of `true` or `false` (issue #2029)
 
-v5.6.2
+v7.0.0 (2024-01-03)
 ------
 
-* Fixed build when another lib does `#undef isnan` (issue #284)
+* Remove `BasicJsonDocument`
+* Remove `StaticJsonDocument`
+* Add abstract `Allocator` class
+* Merge `DynamicJsonDocument` with `JsonDocument`
+* Remove `JSON_ARRAY_SIZE()`, `JSON_OBJECT_SIZE()`, and `JSON_STRING_SIZE()`
+* Remove `ARDUINOJSON_ENABLE_STRING_DEDUPLICATION` (string deduplication cannot be disabled anymore)
+* Remove `JsonDocument::capacity()`
+* Store the strings in the heap
+* Reference-count shared strings
+* Always store `serialized("string")` by copy (#1915)
+* Remove the zero-copy mode of `deserializeJson()` and `deserializeMsgPack()`
+* Fix double lookup in `to<JsonVariant>()`
+* Fix double call to `size()` in `serializeMsgPack()`
+* Include `ARDUINOJSON_SLOT_OFFSET_SIZE` in the namespace name
+* Remove `JsonVariant::shallowCopy()`
+* `JsonDocument`'s capacity grows as needed, no need to pass it to the constructor anymore
+* `JsonDocument`'s allocator is not monotonic anymore, removed values get recycled
+* Show a link to the documentation when user passes an unsupported input type
+* Remove `JsonDocument::memoryUsage()`
+* Remove `JsonDocument::garbageCollect()`
+* Add `deserializeJson(JsonVariant, ...)` and `deserializeMsgPack(JsonVariant, ...)` (#1226)
+* Call `shrinkToFit()` in `deserializeJson()` and `deserializeMsgPack()`
+* `serializeJson()` and `serializeMsgPack()` replace the content of `std::string` and `String` instead of appending to it
+* Replace `add()` with `add<T>()` (`add(T)` is still supported)
+* Remove `createNestedArray()` and `createNestedObject()` (use `to<JsonArray>()` and `to<JsonObject>()` instead)
 
-v5.6.1
-------
-
-* Added missing `#pragma once` (issue #310)
-
-v5.6.0
-------
-
-* ArduinoJson is now a header-only library (issue #199)
-
-v5.5.1
-------
-
-* Fixed compilation error with Intel Galileo (issue #299)
-
-v5.5.0
-------
-
-* Added `JsonVariant::success()` (issue #279)
-* Renamed `JsonVariant::invalid<T>()` to `JsonVariant::defaultValue<T>()`
-
-v5.4.0
-------
-
-* Changed `::String` to `ArduinoJson::String` (issue #275)
-* Changed `::Print` to `ArduinoJson::Print` too
-
-v5.3.0
-------
-
-* Added custom implementation of `ftoa` (issues #266, #267, #269 and #270)
-* Added `JsonVariant JsonBuffer::parse()` (issue #265)
-* Fixed `unsigned long` printed as `signed long` (issue #170)
-
-v5.2.0
-------
-
-* Added `JsonVariant::as<char*>()` as a synonym for `JsonVariant::as<const char*>()` (issue #257)
-* Added example `JsonHttpClient` (issue #256)
-* Added `JsonArray::copyTo()` and `JsonArray::copyFrom()` (issue #254)
-* Added `RawJson()` to insert pregenerated JSON portions (issue #259)
-
-v5.1.1
-------
-
-* Removed `String` duplication when one replaces a value in a `JsonObject` (PR #232 by @ulion)
-
-v5.1.0
-------
-
-* Added support of `long long` (issue #171)
-* Moved all build settings to `ArduinoJson/Configuration.hpp`
-
-> ### BREAKING CHANGE :warning:
+> ### BREAKING CHANGES
 >
-> If you defined `ARDUINOJSON_ENABLE_STD_STREAM`, you now need to define it to `1`.
-
-v5.0.8
-------
-
-* Made the library compatible with [PlatformIO](http://platformio.org/) (issue #181)
-* Fixed `JsonVariant::is<bool>()` that was incorrectly returning false (issue #214)
-
-v5.0.7
-------
-
-* Made library easier to use from a CMake project: simply `add_subdirectory(ArduinoJson/src)`
-* Changed `String` to be a `typedef` of `std::string` (issues #142 and #161)
-
-> ### BREAKING CHANGES :warning:
+> As every major release, ArduinoJson 7 introduces several breaking changes.
+> I added some stubs so that most existing programs should compile, but I highty recommend you upgrade your code.
 >
-> - `JsonVariant(true).as<String>()` now returns `"true"` instead of `"1"`
-> - `JsonVariant(false).as<String>()` now returns `"false"` instead of `"0"`
-
-v5.0.6
-------
-
-* Added parameter to `DynamicJsonBuffer` constructor to set initial size (issue #152)
-* Fixed warning about library category in Arduino 1.6.6 (issue #147)
-* Examples: Added a loop to wait for serial port to be ready (issue #156)
-
-v5.0.5
-------
-
-* Added overload `JsonObjectSuscript::set(value, decimals)` (issue #143)
-* Use `float` instead of `double` to reduce the size of `JsonVariant` (issue #134)
-
-v5.0.4
-------
-
-* Fixed ambiguous overload with `JsonArraySubscript` and `JsonObjectSubscript` (issue #122)
-
-v5.0.3
-------
-
-* Fixed `printTo(String)` which wrote numbers instead of strings (issue #120)
-* Fixed return type of `JsonArray::is<T>()` and some others (issue #121)
-
-v5.0.2
-------
-
-* Fixed segmentation fault in `parseObject(String)` and `parseArray(String)`, when the
-  `StaticJsonBuffer` is too small to hold a copy of the string
-* Fixed Clang warning "register specifier is deprecated" (issue #102)
-* Fixed GCC warning "declaration shadows a member" (issue #103)
-* Fixed memory alignment, which made ESP8266 crash (issue #104)
-* Fixed compilation on Visual Studio 2010 and 2012 (issue #107)
-
-v5.0.1
-------
-
-* Fixed compilation with Arduino 1.0.6 (issue #99)
-
-v5.0.0
-------
-
-* Added support of `String` class (issues #55, #56, #70, #77)
-* Added `JsonBuffer::strdup()` to make a copy of a string (issues #10, #57)
-* Implicitly call `strdup()` for `String` but not for `char*` (issues #84, #87)
-* Added support of non standard JSON input (issue #44)
-* Added support of comments in JSON input (issue #88)
-* Added implicit cast between numerical types (issues #64, #69, #93)
-* Added ability to read number values as string (issue #90)
-* Redesigned `JsonVariant` to leverage converting constructors instead of assignment operators (issue #66)
-* Switched to new the library layout (requires Arduino 1.0.6 or above)
-
-> ### BREAKING CHANGES :warning:
+> #### `JsonDocument`
+> 
+> In ArduinoJson 6, you could allocate the memory pool on the stack (with `StaticJsonDocument`) or in the heap (with `DynamicJsonDocument`).  
+> In ArduinoJson 7, the memory pool is always allocated in the heap, so `StaticJsonDocument` and `DynamicJsonDocument` have been merged into `JsonDocument`.
 >
-> - `JsonObject::add()` was renamed to `set()`
-> - `JsonArray::at()` and `JsonObject::at()` were renamed to `get()`
-> - Number of digits of floating point value are now set with `double_with_n_digits()`
-
-**Personal note about the `String` class**:
-Support of the `String` class has been added to the library because many people use it in their programs.
-However, you should not see this as an invitation to use the `String` class.
-The `String` class is **bad** because it uses dynamic memory allocation.
-Compared to static allocation, it compiles to a bigger, slower program, and is less predictable.
-You certainly don't want that in an embedded environment!
-
-v4.6
-----
-
-* Fixed segmentation fault in `DynamicJsonBuffer` when memory allocation fails (issue #92)
-
-v4.5
-----
-
-* Fixed buffer overflow when input contains a backslash followed by a terminator (issue #81)
-
-**Upgrading is recommended** since previous versions contain a potential security risk.
-
-Special thanks to [Giancarlo Canales Barreto](https://github.com/gcanalesb) for finding this nasty bug.
-
-v4.4
-----
-
-* Added `JsonArray::measureLength()` and `JsonObject::measureLength()` (issue #75)
-
-v4.3
-----
-
-* Added `JsonArray::removeAt()` to remove an element of an array (issue #58)
-* Fixed stack-overflow in `DynamicJsonBuffer` when parsing huge JSON files (issue #65)
-* Fixed wrong return value of `parseArray()` and `parseObject()` when allocation fails (issue #68)
-
-v4.2
-----
-
-* Switched back to old library layout (issues #39, #43 and #45)
-* Removed global new operator overload (issue #40, #45 and #46)
-* Added an example with EthernetServer
-
-v4.1
-----
-
-* Added DynamicJsonBuffer (issue #19)
-
-v4.0
-----
-
-* Unified parser and generator API (issue #23)
-* Updated library layout, now requires Arduino 1.0.6 or newer
-
-> ### BREAKING CHANGES :warning:
+> In ArduinoJson 6, `JsonDocument` had a fixed capacity; in ArduinoJson 7, it has an elastic capacity that grows as needed.
+> Therefore, you don't need to specify the capacity anymore, so the macros `JSON_ARRAY_SIZE()`, `JSON_OBJECT_SIZE()`, and `JSON_STRING_SIZE()` have been removed.
 >
-> API changed significantly since v3, see [Migrating code to the new API](https://arduinojson.org/doc/migration/).
-
+> ```c++
+> // ArduinoJson 6
+> StaticJsonDocument<256> doc;
+> // or
+> DynamicJsonDocument doc(256);
+> 
+> // ArduinoJson 7
+> JsonDocument doc;
+> ```
+>
+> In ArduinoJson 7, `JsonDocument` reuses released memory, so `garbageCollect()` has been removed.  
+> `shrinkToFit()` is still available and releases the over-allocated memory.
+>
+> Due to a change in the implementation, it's not possible to store a pointer to a variant from another `JsonDocument`, so `shallowCopy()` has been removed.
+> 
+> In ArduinoJson 6, the meaning of `memoryUsage()` was clear: it returned the number of bytes used in the memory pool.  
+> In ArduinoJson 7, the meaning of `memoryUsage()` would be ambiguous, so it has been removed.
+>
+> #### Custom allocators
+>
+> In ArduinoJson 6, you could specify a custom allocator class as a template parameter of `BasicJsonDocument`.  
+> In ArduinoJson 7, you must inherit from `ArduinoJson::Allocator` and pass a pointer to an instance of your class to the constructor of `JsonDocument`.
+>
+> ```c++
+> // ArduinoJson 6
+> class MyAllocator {
+>   // ...
+> };
+> BasicJsonDocument<MyAllocator> doc(256);
+>
+> // ArduinoJson 7
+> class MyAllocator : public ArduinoJson::Allocator {
+>   // ...
+> };
+> MyAllocator myAllocator;
+> JsonDocument doc(&myAllocator);
+> ```
+>
+> #### `createNestedArray()` and `createNestedObject()`
+>
+> In ArduinoJson 6, you could create a nested array or object with `createNestedArray()` and `createNestedObject()`.  
+> In ArduinoJson 7, you must use `add<T>()` or `to<T>()` instead.
+>
+> For example, to create `[[],{}]`, you would write:
+>
+> ```c++
+> // ArduinoJson 6
+> arr.createNestedArray();
+> arr.createNestedObject();
+>
+> // ArduinoJson 7
+> arr.add<JsonArray>();
+> arr.add<JsonObject>();
+> ```
+>
+> And to create `{"array":[],"object":{}}`, you would write:
+>
+> ```c++
+> // ArduinoJson 6
+> obj.createNestedArray("array");
+> obj.createNestedObject("object");
+>
+> // ArduinoJson 7
+> obj["array"].to<JsonArray>();
+> obj["object"].to<JsonObject>();
+> ```
